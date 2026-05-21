@@ -54,7 +54,7 @@ export default function NotificationBell() {
       setPanelStyle({
         position: "fixed",
         bottom: window.innerHeight - rect.top + 8,
-        right: window.innerWidth - rect.right - 4,
+        right: 16,
         zIndex: 1500,
       });
       fetchNotifs();
