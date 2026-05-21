@@ -1,0 +1,22 @@
+# ── Netlify configuration ─────────────────────────────────────────────────────
+#
+# HOW TO DEPLOY
+# 1. Push this repo to GitHub.
+# 2. Go to https://app.netlify.com → "Add new site" → "Import an existing project".
+# 3. Set Base directory: frontend
+#    Build command:   npm run build
+#    Publish directory: frontend/build   (Netlify auto-fills this from [build] below)
+# 4. Add the environment variable in Netlify → Site settings → Environment variables:
+#      BACKEND_URL = https://your-backend.up.railway.app
+#    (no trailing slash)
+# 5. Trigger a deploy. Done.
+# ─────────────────────────────────────────────────────────────────────────────
+
+[build]
+  base    = "frontend"
+  command = "npm run build && node -e \"const fs=require('fs');const b=process.env.BACKEND_URL||'';fs.writeFileSync('build/_redirects','/api/* '+b+'/api/:splat 200\\n/* /index.html 200\\n');\""
+  publish = "build"
+
+[build.environment]
+  CI           = "false"
+  NODE_VERSION = "18"
