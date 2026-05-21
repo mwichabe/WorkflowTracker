@@ -1241,7 +1241,6 @@ body {
 }
 
 .notif-panel {
-  position: absolute; bottom: 42px; right: -8px; z-index: 500;
   width: 300px; background: #1E293B;
   border: 1px solid rgba(255,255,255,.08);
   border-radius: 14px;

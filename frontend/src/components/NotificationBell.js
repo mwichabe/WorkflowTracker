@@ -15,9 +15,11 @@ function fmtRelative(dt) {
 
 export default function NotificationBell() {
   const { isGuest } = useAuth();
-  const [notifs, setNotifs]   = useState([]);
-  const [open, setOpen]       = useState(false);
-  const panelRef = useRef(null);
+  const [notifs, setNotifs]       = useState([]);
+  const [open, setOpen]           = useState(false);
+  const [panelStyle, setPanelStyle] = useState({});
+  const wrapRef = useRef(null);
+  const btnRef  = useRef(null);
 
   const fetchNotifs = useCallback(async () => {
     try {
@@ -33,15 +35,32 @@ export default function NotificationBell() {
     return () => clearInterval(id);
   }, [fetchNotifs, isGuest]);
 
+  // Close on outside click
   useEffect(() => {
     function handleClick(e) {
-      if (panelRef.current && !panelRef.current.contains(e.target)) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) {
         setOpen(false);
       }
     }
     if (open) document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
+
+  function handleToggle() {
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      // Position panel above the button, aligned to its right edge
+      // Using fixed positioning to escape the sidebar's overflow:hidden
+      setPanelStyle({
+        position: "fixed",
+        bottom: window.innerHeight - rect.top + 8,
+        right: window.innerWidth - rect.right - 4,
+        zIndex: 1500,
+      });
+      fetchNotifs();
+    }
+    setOpen(v => !v);
+  }
 
   async function markAllRead() {
     try {
@@ -55,10 +74,11 @@ export default function NotificationBell() {
   const unread = notifs.filter(n => !n.is_read).length;
 
   return (
-    <div className="notif-wrap" ref={panelRef}>
+    <div className="notif-wrap" ref={wrapRef}>
       <button
+        ref={btnRef}
         className={`notif-btn${open ? " notif-btn-open" : ""}`}
-        onClick={() => { setOpen(v => !v); if (!open) fetchNotifs(); }}
+        onClick={handleToggle}
         title="Notifications"
       >
         <Bell size={15} strokeWidth={2} />
@@ -68,7 +88,7 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="notif-panel">
+        <div className="notif-panel" style={panelStyle}>
           <div className="notif-panel-header">
             <span>Notifications</span>
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
