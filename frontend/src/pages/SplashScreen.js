@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   FileText, ArrowRight, GitBranch, Shield, BarChart3,
-  CheckCircle, Clock, XCircle, HelpCircle,
+  CheckCircle, Clock, XCircle, HelpCircle, Send,
 } from "lucide-react";
 
 const CSS = `
@@ -149,18 +149,6 @@ const CSS = `
 .spl-btn-go:hover { background: #3D3880; transform: translateY(-2px); }
 .spl-btn-go:active { transform: translateY(0); }
 
-.spl-btn-ghost {
-  display: inline-flex; align-items: center; gap: 7px;
-  background: transparent;
-  color: #7572A8;
-  font-size: 13.5px; font-weight: 500;
-  padding: 12px 20px; border-radius: 11px;
-  border: 1px solid #D9D6EE;
-  cursor: pointer; font-family: 'DM Sans', sans-serif;
-  transition: border-color 0.2s, color 0.2s, background 0.2s;
-}
-.spl-btn-ghost:hover { border-color: #B0ABDC; color: #4A47A3; background: #F0EEF9; }
-
 .spl-divider {
   margin-top: 32px; padding-top: 28px;
   border-top: 1px solid #E4E0F0;
@@ -175,6 +163,7 @@ const CSS = `
   font-size: 11px; color: #A09DAE; margin-top: 5px; font-weight: 400;
 }
 
+/* ── Workflow visual card ── */
 .spl-mock {
   background: #FFFFFF;
   border: 1px solid #E8E4F0;
@@ -194,31 +183,99 @@ const CSS = `
   font-size: 10.5px; font-weight: 500;
   color: #C4C0D4; margin-left: 8px; letter-spacing: 0.02em;
 }
-.spl-mock-body { padding: 16px; }
 
-.spl-msc { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin-bottom: 14px; }
-.spl-msc-card {
-  background: #FAF9FC;
-  border: 1px solid #EDE9F8;
-  border-radius: 10px; padding: 10px 12px;
-}
-.spl-msc-n { font-size: 20px; font-weight: 600; letter-spacing: -0.04em; line-height: 1; font-family: 'Lora', serif; }
-.spl-msc-l { font-size: 9.5px; color: #B0ACBF; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+.spl-wf-body { padding: 18px 20px 20px; }
 
-.spl-mtbl { width: 100%; border-collapse: collapse; }
-.spl-mth {
-  font-size: 9px; font-weight: 600; color: #C4C0D4;
-  text-transform: uppercase; letter-spacing: 0.07em;
-  padding: 0 8px 8px 0; text-align: left;
+.spl-wf-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 18px;
 }
-.spl-mtr td { padding: 7px 8px 7px 0; border-top: 1px solid #F3F0FA; }
-.spl-mnm { font-size: 11.5px; font-weight: 500; color: #1A1730; }
-.spl-mco { font-size: 10px; color: #B0ACBF; margin-top: 1px; }
-.spl-mbadge {
-  display: inline-block; font-size: 9.5px; font-weight: 600;
+.spl-wf-title {
+  font-size: 11px; font-weight: 600; color: #9896A4;
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+.spl-wf-sub {
+  font-size: 10px; color: #C4C0D4; font-weight: 400;
+}
+
+.spl-wf-step {
+  display: flex; align-items: flex-start; gap: 11px;
+  padding: 5px 8px; border-radius: 9px;
+  transition: background 0.3s ease;
+  cursor: default;
+}
+.spl-wf-step.active { background: #F7F5FE; }
+
+.spl-wf-connector {
+  display: flex; flex-direction: column; align-items: center;
+  flex-shrink: 0;
+}
+.spl-wf-dot {
+  width: 30px; height: 30px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: transform 0.3s ease;
+}
+.spl-wf-step.active .spl-wf-dot { transform: scale(1.08); }
+.spl-wf-line {
+  width: 1.5px; height: 14px;
+  background: #EDE9F8; margin: 3px 0;
+}
+
+.spl-wf-info { padding-top: 6px; flex: 1; min-width: 0; }
+.spl-wf-lbl {
+  font-size: 12.5px; font-weight: 600; color: #1A1730;
+  transition: color 0.3s ease; line-height: 1;
+}
+.spl-wf-desc {
+  font-size: 10.5px; color: #9896A4; margin-top: 3px;
+  animation: wf-fadein 0.3s ease;
+}
+@keyframes wf-fadein { from { opacity:0; transform:translateY(3px); } to { opacity:1; transform:translateY(0); } }
+
+.spl-wf-badge {
+  margin-top: 6px; flex-shrink: 0;
   padding: 3px 9px; border-radius: 20px;
+  font-size: 9.5px; font-weight: 600;
+  display: flex; align-items: center; gap: 4px;
+  animation: wf-fadein 0.3s ease;
 }
 
+.spl-wf-pulse {
+  width: 8px; height: 8px; border-radius: 50%;
+  margin-top: 11px; flex-shrink: 0;
+}
+@keyframes wf-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 currentColor; }
+  50% { opacity: 0.6; transform: scale(0.75); }
+}
+
+.spl-wf-divider {
+  margin: 12px 0 10px;
+  border: none; border-top: 1px dashed #EDE9F8;
+}
+
+.spl-wf-branches {
+  display: flex; gap: 8px; padding: 2px 8px;
+}
+.spl-wf-branch-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 20px;
+  font-size: 10px; font-weight: 600;
+}
+
+.spl-wf-roles {
+  margin-top: 14px; padding-top: 12px;
+  border-top: 1px solid #F0EDF7;
+  display: flex; gap: 7px; flex-wrap: wrap;
+}
+.spl-wf-role-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 11px; border-radius: 20px;
+  font-size: 10px; font-weight: 500; color: #534AB7;
+  background: #EEEDFC; border: 1px solid #DDD9F0;
+}
+
+/* ── Trust strip ── */
 .spl-trust {
   display: flex; align-items: center; justify-content: center;
   gap: 16px; padding: 13px 24px;
@@ -268,22 +325,48 @@ const FEATURES = [
   },
 ];
 
-const MOCK_STATS = [
-  { n: "14", l: "Total",     c: "#534AB7" },
-  { n: "4",  l: "Approved",  c: "#0F7A56" },
-  { n: "3",  l: "Reviewing", c: "#9A5C0A" },
-  { n: "2",  l: "Pending",   c: "#1D6FA8" },
+const PIPELINE = [
+  {
+    label: "Draft",
+    Icon: FileText,
+    color: "#534AB7", bg: "#EEEDFC",
+    desc: "Create and edit your application before submitting",
+  },
+  {
+    label: "Submitted",
+    Icon: Send,
+    color: "#1D6FA8", bg: "#E4EFFE",
+    desc: "Application queued and waiting for an admin to pick it up",
+  },
+  {
+    label: "Under Review",
+    Icon: Clock,
+    color: "#9A5C0A", bg: "#FEF3E2",
+    desc: "An admin has opened your application and is evaluating it",
+  },
+  {
+    label: "Approved",
+    Icon: CheckCircle,
+    color: "#0F7A56", bg: "#E8F5EE",
+    desc: "Decision recorded — application accepted",
+  },
 ];
 
-const MOCK_ROWS = [
-  { nm: "James Omondi",  co: "Savannah Ltd", status: "Approved",      bg: "#E8F5EE", cl: "#0F7A56" },
-  { nm: "Amina Wanjiru", co: "Karibu Co.",   status: "Under Review",  bg: "#FEF3E2", cl: "#9A5C0A" },
-  { nm: "David Mutua",   co: "Peak Group",   status: "Submitted",     bg: "#E4EFFE", cl: "#1D4FA8" },
-  { nm: "Grace Njeri",   co: "Blue Valley",  status: "Need Info",     bg: "#F0EEFE", cl: "#534AB7" },
-  { nm: "Peter Kariuki", co: "Summit Corp",  status: "Rejected",      bg: "#FDEAEA", cl: "#A32D2D" },
+const BRANCHES = [
+  { label: "Rejected",       Icon: XCircle,   color: "#A32D2D", bg: "#FDEAEA" },
+  { label: "Need More Info", Icon: HelpCircle, color: "#534AB7", bg: "#F0EEFE" },
 ];
 
-function AppMockup() {
+const ROLES = ["Super Admin", "Admin", "User / Guest"];
+
+function WorkflowVisual() {
+  const [active, setActive] = useState(0);
+
+  useEffect(() => {
+    const t = setInterval(() => setActive(a => (a + 1) % PIPELINE.length), 2400);
+    return () => clearInterval(t);
+  }, []);
+
   return (
     <div className="spl-mock">
       <div className="spl-mock-bar">
@@ -292,39 +375,60 @@ function AppMockup() {
             <div key={c} className="spl-dot" style={{ background: c }} />
           ))}
         </div>
-        <span className="spl-mock-label">WorkflowTracker — Applications</span>
+        <span className="spl-mock-label">WorkflowTracker — Pipeline</span>
       </div>
-      <div className="spl-mock-body">
-        <div className="spl-msc">
-          {MOCK_STATS.map(s => (
-            <div key={s.l} className="spl-msc-card">
-              <div className="spl-msc-n" style={{ color: s.c }}>{s.n}</div>
-              <div className="spl-msc-l">{s.l}</div>
+
+      <div className="spl-wf-body">
+        <div className="spl-wf-header">
+          <span className="spl-wf-title">Application lifecycle</span>
+          <span className="spl-wf-sub">4 stages · role-gated</span>
+        </div>
+
+        {PIPELINE.map(({ label, Icon, color, bg, desc }, i) => {
+          const isActive = active === i;
+          return (
+            <div key={label} className={`spl-wf-step${isActive ? " active" : ""}`}>
+              <div className="spl-wf-connector">
+                <div className="spl-wf-dot" style={{ background: bg }}>
+                  <Icon size={13} color={color} strokeWidth={2} />
+                </div>
+                {i < PIPELINE.length - 1 && <div className="spl-wf-line" />}
+              </div>
+              <div className="spl-wf-info">
+                <div className="spl-wf-lbl" style={{ color: isActive ? color : "#1A1730" }}>
+                  {label}
+                </div>
+                {isActive && <div className="spl-wf-desc">{desc}</div>}
+              </div>
+              {isActive && (
+                <div
+                  className="spl-wf-pulse"
+                  style={{
+                    background: color,
+                    animation: "wf-pulse 1.4s ease-in-out infinite",
+                  }}
+                />
+              )}
             </div>
+          );
+        })}
+
+        <hr className="spl-wf-divider" />
+
+        <div className="spl-wf-branches">
+          {BRANCHES.map(({ label, Icon, color, bg }) => (
+            <span key={label} className="spl-wf-branch-chip" style={{ background: bg, color }}>
+              <Icon size={10} strokeWidth={2.5} />
+              {label}
+            </span>
           ))}
         </div>
-        <table className="spl-mtbl">
-          <thead>
-            <tr>
-              <th className="spl-mth">Applicant</th>
-              <th className="spl-mth">Company</th>
-              <th className="spl-mth">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {MOCK_ROWS.map(r => (
-              <tr key={r.nm} className="spl-mtr">
-                <td><div className="spl-mnm">{r.nm}</div></td>
-                <td><div className="spl-mco">{r.co}</div></td>
-                <td>
-                  <span className="spl-mbadge" style={{ background: r.bg, color: r.cl }}>
-                    {r.status}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+
+        <div className="spl-wf-roles">
+          {ROLES.map(r => (
+            <span key={r} className="spl-wf-role-chip">{r}</span>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -395,9 +499,6 @@ export default function SplashScreen({ onDone }) {
               <button className="spl-btn-go" onClick={handleGo}>
                 Get started <ArrowRight size={15} strokeWidth={2} />
               </button>
-              <button className="spl-btn-ghost">
-                View docs
-              </button>
             </div>
 
             <div className="spl-divider">
@@ -416,12 +517,12 @@ export default function SplashScreen({ onDone }) {
 
           {/* RIGHT */}
           <div className={`spl-right${vis ? " vis" : ""}`}>
-            <AppMockup />
+            <WorkflowVisual />
           </div>
         </div>
 
         <div className="spl-trust">
-          {["Django 4.2", "React 18", "JWT Auth", "Role-based Access", "RESTful API", "MongoDB"].flatMap((item, i, arr) => [
+          {["Django 4.2", "React 18", "JWT Auth", "Role-based Access", "RESTful API", "PostgreSQL"].flatMap((item, i, arr) => [
             <span key={item} className="spl-trust-item">{item}</span>,
             i < arr.length - 1 ? <span key={`sep-${i}`} className="spl-trust-sep" /> : null,
           ])}
