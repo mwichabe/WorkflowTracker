@@ -1,29 +1,31 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { MessageCircle, X, Send, Bot, User, Loader } from "lucide-react";
 
-const API_KEY = "AIzaSyDPxdB68UMx1YP-rN9_MBkkzwu5IvYsXC8";
+const API_KEY = process.env.REACT_APP_GEMINI_API_KEY || "";
 const API_URL =
-  `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${API_KEY}`;
+  `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
 
-const SYSTEM_PROMPT = `You are a helpful assistant for WorkflowTracker, a job application management app.
-You help users track their job applications through various stages.
+const SYSTEM_PROMPT = `You are a helpful assistant for WorkflowTracker, an application workflow management platform.
 
 Key facts about WorkflowTracker:
-- Users can add job applications with company name, role, status, notes, salary, and location
-- Application statuses: Saved (bookmarked, not yet applied), Applied (submitted application), Interviewing (in interview process), Offer (received offer), Rejected (application declined), Withdrawn (user withdrew)
-- Each application has a workflow/timeline showing status history
-- Users can edit, delete, and view detailed info for each application
-- The sidebar shows total application count and a status breakdown
-- Auth options: sign in with username/password, create a new account, or continue as Guest (read-only)
-- Guest mode: can view applications but cannot create or edit them
-- The dashboard/home page lists all applications with filters and sorting
+- Users submit formal applications that go through an admin-gated review process
+- Application lifecycle: Draft → Submitted → Under Review → Approved / Rejected / Need More Information
+- Need More Information sends the application back to the owner to edit and resubmit
+- Application types: Recordation, Renewal, Change of Ownership, Change of Name, Discontinuation
+- Roles: Guest (read-only), User (create & submit own applications), Admin (review & decide), Super Admin (manage admin roles)
+- Users can apply to become an Admin; Super Admins approve or reject those requests
+- In-app notifications alert users when their application status changes, and alert admins when new applications are submitted
+- Auth: register with username/password, sign in, or continue as Guest
+- Guest mode: can view applications but cannot create or submit them
+- Admin Dashboard: shows stats, all applications with review actions, and admin role requests (Super Admin only)
+- Each application has a tracking number (e.g. APP-1A2B3C4D), applicant details, description, and full audit trail
 
 Be concise, friendly, and helpful. If asked something unrelated to the app, politely redirect to WorkflowTracker topics.`;
 
 const SUGGESTIONS = [
-  "How do I add a new application?",
-  "What statuses are available?",
-  "Can I use the app without an account?",
+  "How do I submit an application?",
+  "What happens after I submit?",
+  "How do I become an admin?",
 ];
 
 function TypingDots() {
@@ -104,6 +106,13 @@ export default function ChatBot() {
     setConversation(newConversation);
     setTyping(true);
 
+    if (!API_KEY) {
+      setConversation(prev => prev.slice(0, -1));
+      setMessages(prev => [...prev, { role: "bot", text: "AI assistant is not configured. Please set the REACT_APP_GEMINI_API_KEY environment variable.", error: true }]);
+      setTyping(false);
+      return;
+    }
+
     try {
       const res = await fetch(API_URL, {
         method: "POST",
@@ -115,11 +124,14 @@ export default function ChatBot() {
         }),
       });
 
+      const data = await res.json();
+
       if (!res.ok) {
-        throw new Error(`API error ${res.status}`);
+        const apiMsg = data?.error?.message || `HTTP ${res.status}`;
+        console.error("Gemini API error:", data);
+        throw new Error(apiMsg);
       }
 
-      const data = await res.json();
       const reply =
         data?.candidates?.[0]?.content?.parts?.[0]?.text ||
         "Sorry, I couldn't generate a response. Please try again.";
@@ -129,11 +141,19 @@ export default function ChatBot() {
         { role: "model", parts: [{ text: reply }] },
       ]);
       setMessages(prev => [...prev, { role: "bot", text: reply }]);
-    } catch {
+    } catch (err) {
+      console.error("ChatBot error:", err);
       setConversation(prev => prev.slice(0, -1));
+      const errorText = err.message?.includes("API_KEY")
+        ? "Invalid API key. Please check your Gemini API key configuration."
+        : err.message?.includes("quota") || err.message?.includes("429")
+        ? "Rate limit reached. Please wait a moment and try again."
+        : err.message?.includes("not found") || err.message?.includes("404")
+        ? "AI model unavailable. Please try again later."
+        : "Sorry, something went wrong. Please check your connection and try again.";
       setMessages(prev => [
         ...prev,
-        { role: "bot", text: "Sorry, something went wrong. Please check your connection and try again.", error: true },
+        { role: "bot", text: errorText, error: true },
       ]);
     } finally {
       setTyping(false);
