@@ -13,7 +13,6 @@ venv/
 .env
 *.sqlite3
 staticfiles/
-.python-version
 
 # ── OS / editors ──────────────────────
 .DS_Store
