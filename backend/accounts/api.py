@@ -10,8 +10,8 @@ from ninja.security import HttpBearer
 
 from .models import AdminRequest, Notification
 
-router = Router()
-admin_router = Router()
+router = Router(tags=["Auth"])
+admin_router = Router(tags=["Admin"])
 
 _ALG = "HS256"
 _TTL = datetime.timedelta(days=7)
@@ -142,8 +142,23 @@ class ReviewRequestIn(Schema):
 
 # ── Auth endpoints ────────────────────────────────────────
 
-@router.post("/register", response={201: AuthOut, 400: ErrorOut}, auth=None)
+@router.post(
+    "/register",
+    response={201: AuthOut, 400: ErrorOut},
+    auth=None,
+    summary="Register a new account",
+)
 def register(request, payload: RegisterIn):
+    """
+    Create a new user account and return a JWT token.
+
+    - **username** — 3–150 characters, must be unique (case-insensitive)
+    - **email** — must be unique if provided
+    - **password** — minimum 6 characters
+    - **first_name / last_name** — optional display name fields
+
+    Returns a `token` (valid for 7 days) and the created `user` object.
+    """
     if len(payload.username.strip()) < 3:
         return 400, {"detail": "Username must be at least 3 characters."}
     if len(payload.password) < 6:
@@ -163,8 +178,25 @@ def register(request, payload: RegisterIn):
     return 201, {"token": _token(user), "user": _user_dict(user)}
 
 
-@router.post("/login", response={200: AuthOut, 401: ErrorOut}, auth=None)
+@router.post(
+    "/login",
+    response={200: AuthOut, 401: ErrorOut},
+    auth=None,
+    summary="Sign in and get a JWT token",
+)
 def login(request, payload: LoginIn):
+    """
+    Authenticate with username and password.
+
+    Returns a `token` (HS256 JWT, valid for 7 days) and the `user` profile.
+    The token includes `is_staff` and `is_superuser` claims — use these to
+    determine which UI features and API endpoints the user can access.
+
+    Pass the token on every protected request:
+    ```
+    Authorization: Bearer <token>
+    ```
+    """
     username = payload.username.strip()
     try:
         db_user = User.objects.get(username__iexact=username)
@@ -176,28 +208,80 @@ def login(request, payload: LoginIn):
     return 200, {"token": _token(user), "user": _user_dict(user)}
 
 
-@router.get("/me", response={200: UserOut, 401: ErrorOut}, auth=jwt_auth)
+@router.get(
+    "/me",
+    response={200: UserOut, 401: ErrorOut},
+    auth=jwt_auth,
+    summary="Get current user profile",
+)
 def me(request):
+    """
+    Return the authenticated user's profile.
+
+    Useful for validating a stored token and refreshing role data
+    (`is_staff`, `is_superuser`) after an admin approves a role change.
+
+    **Requires:** `Authorization: Bearer <token>`
+    """
     return 200, _user_dict(request.auth)
 
 
 # ── Notifications ─────────────────────────────────────────
 
-@router.get("/notifications", response=List[NotificationOut], auth=jwt_auth)
+@router.get(
+    "/notifications",
+    response=List[NotificationOut],
+    auth=jwt_auth,
+    summary="List in-app notifications",
+)
 def list_notifications(request):
+    """
+    Return the 50 most recent notifications for the authenticated user, newest first.
+
+    Notification types:
+    - **status_update** — application status changed (submitted, under review, decided)
+    - **admin_request** — admin role request approved or rejected
+
+    **Requires:** `Authorization: Bearer <token>`
+    """
     return list(request.auth.notifications.all()[:50])
 
 
-@router.post("/notifications/read-all", response={200: dict}, auth=jwt_auth)
+@router.post(
+    "/notifications/read-all",
+    response={200: dict},
+    auth=jwt_auth,
+    summary="Mark all notifications as read",
+)
 def mark_all_read(request):
+    """
+    Mark every unread notification for the current user as read.
+
+    **Requires:** `Authorization: Bearer <token>`
+    """
     request.auth.notifications.filter(is_read=False).update(is_read=True)
     return 200, {"ok": True}
 
 
 # ── Admin-request (user side) ─────────────────────────────
 
-@router.post("/request-admin", response={200: dict, 400: ErrorOut}, auth=jwt_auth)
+@router.post(
+    "/request-admin",
+    response={200: dict, 400: ErrorOut},
+    auth=jwt_auth,
+    summary="Request the Admin role",
+)
 def request_admin(request, payload: AdminRequestIn):
+    """
+    Submit a request to be granted admin privileges.
+
+    - A user can only have one active request at a time.
+    - If a previous request was **rejected**, calling this endpoint again re-opens it.
+    - All super admins are notified via in-app notification.
+
+    **Requires:** `Authorization: Bearer <token>`
+    **Not allowed for:** users who are already admins or super admins.
+    """
     user = request.auth
     if user.is_staff or user.is_superuser:
         return 400, {"detail": "You are already an admin."}
@@ -206,7 +290,6 @@ def request_admin(request, payload: AdminRequestIn):
     if not created:
         if req.status == AdminRequest.PENDING:
             return 400, {"detail": "You already have a pending admin request."}
-        # re-apply after rejection
         req.status = AdminRequest.PENDING
         req.reason = payload.reason or ""
         req.reviewer_note = ""
@@ -216,7 +299,6 @@ def request_admin(request, payload: AdminRequestIn):
         req.reason = payload.reason or ""
         req.save()
 
-    # Notify all superusers
     superusers = User.objects.filter(is_superuser=True)
     for su in superusers:
         Notification.objects.create(
@@ -229,8 +311,25 @@ def request_admin(request, payload: AdminRequestIn):
     return 200, {"ok": True}
 
 
-@router.get("/admin-request-status", response={200: dict, 404: ErrorOut}, auth=jwt_auth)
+@router.get(
+    "/admin-request-status",
+    response={200: dict, 404: ErrorOut},
+    auth=jwt_auth,
+    summary="Check own admin request status",
+)
 def admin_request_status(request):
+    """
+    Return the current status of the authenticated user's admin role request.
+
+    Response fields:
+    - **status** — `pending` | `approved` | `rejected`
+    - **reviewer_note** — feedback from the super admin (populated on rejection)
+    - **created_at** — ISO 8601 timestamp
+
+    Returns `404` if no request has been submitted yet.
+
+    **Requires:** `Authorization: Bearer <token>`
+    """
     try:
         req = request.auth.admin_request
         return 200, {
@@ -244,8 +343,24 @@ def admin_request_status(request):
 
 # ── Admin router (staff/superuser only) ───────────────────
 
-@admin_router.get("/stats", response={200: dict, 403: ErrorOut}, auth=jwt_auth)
+@admin_router.get(
+    "/stats",
+    response={200: dict, 403: ErrorOut},
+    auth=jwt_auth,
+    summary="Dashboard statistics",
+)
 def admin_stats(request):
+    """
+    Return aggregate counts for the admin dashboard.
+
+    Response fields:
+    - **total_applications** — all applications in the system
+    - **status_counts** — map of `{ status: count }` for each status
+    - **pending_admin_requests** — number of unreviewed role requests
+    - **total_users** — active user accounts
+
+    **Requires:** Admin or Super Admin role.
+    """
     user = request.auth
     if not (user.is_staff or user.is_superuser):
         return 403, {"detail": "Admin access required."}
@@ -267,16 +382,49 @@ def admin_stats(request):
     }
 
 
-@admin_router.get("/requests", response={200: List[AdminRequestOut], 403: ErrorOut}, auth=jwt_auth)
+@admin_router.get(
+    "/requests",
+    response={200: List[AdminRequestOut], 403: ErrorOut},
+    auth=jwt_auth,
+    summary="List all admin role requests",
+)
 def list_admin_requests(request):
+    """
+    Return all admin role requests (all statuses).
+
+    Each entry includes the requesting user's username, their reason,
+    the reviewer note, and current status.
+
+    **Requires:** Super Admin role.
+    """
     user = request.auth
     if not user.is_superuser:
         return 403, {"detail": "Super admin access required."}
     return 200, list(AdminRequest.objects.select_related("user").all())
 
 
-@admin_router.patch("/requests/{req_id}", response={200: dict, 400: ErrorOut, 403: ErrorOut, 404: ErrorOut}, auth=jwt_auth)
+@admin_router.patch(
+    "/requests/{req_id}",
+    response={200: dict, 400: ErrorOut, 403: ErrorOut, 404: ErrorOut},
+    auth=jwt_auth,
+    summary="Approve or reject an admin role request",
+)
 def review_admin_request(request, req_id: int, payload: ReviewRequestIn):
+    """
+    Approve or reject a pending admin role request.
+
+    **Payload:**
+    - **action** — `"approve"` or `"reject"`
+    - **reviewer_note** — required when action is `"reject"`, optional for `"approve"`
+
+    **On approval:** the user's `is_staff` flag is set to `True` and they receive
+    a notification. They must call `GET /api/auth/me` to refresh their token claims.
+
+    **On rejection:** the user is notified with the reviewer note.
+    A rejected user can re-apply via `POST /api/auth/request-admin`.
+
+    **Requires:** Super Admin role.
+    """
     user = request.auth
     if not user.is_superuser:
         return 403, {"detail": "Super admin access required."}
@@ -294,7 +442,6 @@ def review_admin_request(request, req_id: int, payload: ReviewRequestIn):
         req.reviewer_note = payload.reviewer_note or ""
         req.reviewed_by = user
         req.save()
-        # Grant staff role
         req.user.is_staff = True
         req.user.save()
         Notification.objects.create(
@@ -323,8 +470,24 @@ def review_admin_request(request, req_id: int, payload: ReviewRequestIn):
     return 400, {"detail": "Action must be 'approve' or 'reject'."}
 
 
-@admin_router.get("/users", response={200: List[dict], 403: ErrorOut}, auth=jwt_auth)
+@admin_router.get(
+    "/users",
+    response={200: List[dict], 403: ErrorOut},
+    auth=jwt_auth,
+    summary="List all users",
+)
 def list_users(request):
+    """
+    Return all active user accounts with their roles and admin request status.
+
+    Each user object includes:
+    - Basic profile fields (`id`, `username`, `email`, `first_name`, `last_name`)
+    - Role flags (`is_staff`, `is_superuser`)
+    - `date_joined` timestamp
+    - `admin_request` — `{ status, created_at }` if a request exists, else `null`
+
+    **Requires:** Admin or Super Admin role.
+    """
     user = request.auth
     if not (user.is_staff or user.is_superuser):
         return 403, {"detail": "Admin access required."}
